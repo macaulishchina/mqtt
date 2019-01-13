@@ -11,6 +11,7 @@ import paho.mqtt.client as mqtt
 import threading
 import time
 import queue
+import uuid
 
 logging.basicConfig(format="%(asctime)s-%(name)s-%(levelname)s-%(message)s", level=logging.DEBUG)
 lg = logging.getLogger('mqtt')
@@ -49,7 +50,7 @@ class MQTTClient:
                 self._password = cf['mqtt']['password']
                 self._work = True
                 self._target_port = int(cf['mqtt']['target_port'])
-                self._client_name = cf['mqtt']['client_prefix'] + cf['local']['host']
+                self._client_name = cf['mqtt']['client_prefix'] + cf['local']['host']+str(uuid.uuid1())
                 self._queue_len = int(cf['mqtt']['queue_len'])
                 self._keepalive = int(cf['mqtt']['keepalive'])
                 self._subscribe_topic = cf['mqtt']['default_subscribe_topic']
@@ -59,8 +60,13 @@ class MQTTClient:
                 lg.exception("配置文件出错！")
         return self._work
 
-    def connect(self, username=None, password=None, client_name=None, target_ip=None, target_port=None):
+    def disconnect(self):
+        self._mqtt_client.loop_stop()
+        self._mqtt_client.disconnect()
 
+    def connect(self, username=None, password=None, client_name=None, target_ip=None, target_port=None):
+        self._mqtt_client.loop_stop()
+        self._mqtt_client.disconnect()
         self._username = self._username if username is None else username
         self._password = self._password if password is None else password
         self._client_name = self._client_name if client_name is None else client_name
@@ -72,8 +78,6 @@ class MQTTClient:
         self._mqtt_client.on_subscribe = self._on_subscribe
         self._mqtt_client.on_message = self._on_message
         self._mqtt_client.username_pw_set(self._username, self._password)
-        self._mqtt_client.connect(self._target_ip, self._target_port, self._keepalive)
-        self._mqtt_client.loop_start()
         lg.info("\n|>>>>>>>>>>>>>>>尝试连接到MQTT服务器<<<<<<<<<<<<<<<<<<|\n|\n"
                 "|MQTT服务器IP:\t" + self._target_ip + "\t端口：" + str(self._target_port) + "\n"
                                                                                        "|本地客户端全称：\t" + self._client_name + "\n"
@@ -82,7 +86,10 @@ class MQTTClient:
             self._subscribe_topic) + "\n"
                                      "|消息队列长度：\t" + str(self._queue_len) + "\t心跳时长：\t" + str(self._keepalive) + "s\n"
                                                                                                                 "|\n|>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<|\n")
-        # 等待1秒,避免订阅方法在连接成功之前调用
+
+        self._mqtt_client.connect(self._target_ip, self._target_port, self._keepalive)
+        self._mqtt_client.loop_start()
+# 等待1秒,避免订阅方法在连接成功之前调用
         time.sleep(1)
 
     def publish(self, topic, payload=None, qos=0, retain=False):
@@ -105,7 +112,7 @@ class MQTTClient:
             6: "连接失败：正在使用"
         }
         try:
-            if rc == 0:
+            if rc == 0 and self._subscribe_topic is not None and self._subscribe_topic != '':
                 self._mqtt_client.subscribe(self._subscribe_topic)
             lg.info(rc_table[rc])
         except KeyError:
@@ -169,4 +176,5 @@ class MQTTClient:
                 get += 1
             except queue.Empty:
                 continue
+        self._topic_filter.pop(sub_topic)
         return result
