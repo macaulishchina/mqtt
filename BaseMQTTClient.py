@@ -35,13 +35,13 @@ class MQTTClient:
         self._topic_filter = {'default': self._queue}
         self._encode = 'utf-8'
 
-    def load_config(self):
+    def load_config(self, config_file='mqtt.cfg'):
         """
         尝试读取配置文件，更新必要参数和非必要参数
         :return: 必要的参数，如mqtt服务区的的IP、用户名和密码，读取成功后返回True，必要参数不全返回False
         """
         cf = configparser.ConfigParser()
-        if not cf.read('mqtt.cfg'):
+        if not cf.read(config_file):
             lg.error("读取配置文件失败，读取位置:" + str(os.getcwd()) + "/mqtt.cfg.")
         else:
             try:
